@@ -235,16 +235,15 @@ export const createLeaveRequest = async (req, res) => {
         console.log('Creating leave request:', req.body);
         console.log('User:', req.user);
 
-        // If employee is creating the request, ensure it's for themselves
+        // If employee or manager is creating the request, ensure it's for themselves
         // Extract ID from populated employee object
-        if (req.user.role === 'employee') {
+        if (req.user.role === 'employee' || req.user.role === 'manager') {
             const employeeData = req.user.employee;
             req.body.employee = employeeData._id ? employeeData._id : employeeData;
         }
 
         const { leaveType, startDate, endDate } = req.body;
         const employee = req.body.employee;
-        console.log('Extracted data:', { employee, leaveType, startDate, endDate });
 
         if (!employee) {
             return res.status(400).json({

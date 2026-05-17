@@ -3,15 +3,14 @@ import dotenv from 'dotenv';
 import User from '../models/User.js';
 import Employee from '../models/Employee.js';
 import { Department } from '../models/Organization.js';
-import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
 const seedTestData = async () => {
     try {
         // Connect to MongoDB
-        await mongoose.connect('mongodb://hr_user:hr_password@localhost:27017/hr-crm');
-        console.log('✅ Connected to MongoDB');
+        const conn = await mongoose.connect(process.env.MONGODB_URI);
+        console.log(`✅ Connected to MongoDB: ${conn.connection.host}`);
 
         // Clear existing data
         console.log('🗑️  Clearing existing users and employees...');
@@ -44,10 +43,9 @@ const seedTestData = async () => {
 
         // Create Admin User
         console.log('\n👤 Creating admin user...');
-        const adminPassword = await bcrypt.hash('admin123', 12);
         const adminUser = await User.create({
             email: 'admin@hrcrm.com',
-            password: adminPassword,
+            password: 'admin123',
             role: 'admin',
             isActive: true
         });
@@ -86,10 +84,9 @@ const seedTestData = async () => {
 
         // Create Manager User
         console.log('\n👤 Creating manager user...');
-        const managerPassword = await bcrypt.hash('manager123', 12);
         const managerUser = await User.create({
             email: 'manager@hrcrm.com',
-            password: managerPassword,
+            password: 'manager123',
             role: 'manager',
             isActive: true
         });
@@ -125,10 +122,9 @@ const seedTestData = async () => {
 
         // Create Employee User
         console.log('\n👤 Creating employee user...');
-        const employeePassword = await bcrypt.hash('employee123', 12);
         const employeeUser = await User.create({
             email: 'employee@hrcrm.com',
-            password: employeePassword,
+            password: 'employee123',
             role: 'employee',
             isActive: true
         });
