@@ -147,11 +147,12 @@ export const getLeaveRequests = async (req, res) => {
 
         // If user is basic employee, force filter by their employee ID (Legacy safety, preferred to use getMyLeaveRequests)
         if (req.user.role === 'employee') {
-            query.employee = req.user.employee;
+            query.employee = req.user.employee._id || req.user.employee;
         } else if (req.user.role === 'manager') {
             // Manager: Show only leaves of employees reporting to this manager
             // Note: We need to find all employees who have this manager as reportingManager
-            const reportees = await Employee.find({ reportingManager: req.user.employee }).select('_id');
+            const managerEmployeeId = req.user.employee._id || req.user.employee;
+            const reportees = await Employee.find({ reportingManager: managerEmployeeId }).select('_id');
             const reporteeIds = reportees.map(e => e._id);
 
             // If filtering by specific employee, check if they are in reportees
@@ -724,7 +725,8 @@ export const getLeaveStats = async (req, res) => {
             query.employee = req.user.employee._id || req.user.employee;
         } else if (req.user.role === 'manager') {
             // Manager: Show only stats for employees reporting to this manager
-            const reportees = await Employee.find({ reportingManager: req.user.employee }).select('_id');
+            const managerEmployeeId = req.user.employee._id || req.user.employee;
+            const reportees = await Employee.find({ reportingManager: managerEmployeeId }).select('_id');
             const reporteeIds = reportees.map(e => e._id);
             query.employee = { $in: reporteeIds };
         }
