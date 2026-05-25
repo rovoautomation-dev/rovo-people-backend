@@ -3,7 +3,7 @@ version: "3.9"
 services:
   mongodb:
     image: mongo:7.0
-    container_name: rovo-people
+    container_name: rovo-people-mongo
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
@@ -21,8 +21,23 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 20s 
-      
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rovo-people-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5005:5005"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - rovo-people-network
 
 volumes:
   mongo_data:

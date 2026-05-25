@@ -3,7 +3,7 @@ name: Deploy to Production
 on:
   push:
     branches:
-      - main         
+      - main
 
 jobs:
   deploy:
@@ -30,7 +30,7 @@ jobs:
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
 
-            set -e   # exit immediately if any command fails
+            set -e
 
             echo "=============================="
             echo " Starting deployment..."
@@ -42,30 +42,29 @@ jobs:
             # Pull latest code
             git pull origin main
 
-            # Install / update Node dependencies
-            npm ci --production
-
-            # Write .env from GitHub Secret (the whole file is stored as a secret)
+            # Write production .env from GitHub Secret
             echo "$PROD_ENV" > .env
 
-            # Restart Docker MongoDB (port change applied)
-            docker compose down
+            # Rebuild and restart all containers
+            # --build   → rebuilds the app image with latest code
+            # --no-deps → only rebuilds 'app', keeps mongodb data intact
+            docker compose build --no-cache app
             docker compose up -d
 
-            # Wait for MongoDB to be healthy
-            echo "Waiting for MongoDB to become ready..."
-            for i in {1..30}; do
-              if docker compose exec -T mongodb mongosh --port 27017 --quiet --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q 1; then
-                echo "MongoDB is ready!"
+            # Wait for app container to be running
+            echo "Waiting for app to be ready..."
+            for i in {1..20}; do
+              STATUS=$(docker inspect --format='{{.State.Status}}' rovo-people-app 2>/dev/null || echo "missing")
+              if [ "$STATUS" = "running" ]; then
+                echo "App container is running!"
                 break
               fi
-              echo "  attempt $i/30..."
+              echo "  attempt $i/20 (status: $STATUS)..."
               sleep 3
             done
 
-            # Restart the Node.js application (assumes PM2 is managing it)
-            pm2 restart rovo-people --update-env
-            pm2 save
+            # Show last 20 log lines for visibility
+            docker compose logs --tail=20 app
 
             echo "=============================="
             echo " Deployment complete!"
@@ -75,7 +74,7 @@ jobs:
         env:
           PROD_ENV: ${{ secrets.PROD_ENV }}
 
-      # 4. Health check─
+      # 4. Health check
       - name: Health check
         run: |
           sleep 10
