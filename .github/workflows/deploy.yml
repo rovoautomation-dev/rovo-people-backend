@@ -1,0 +1,85 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main         
+
+jobs:
+  deploy:
+    name: SSH Deploy to Production Server
+    runs-on: ubuntu-latest
+
+    steps:
+      #1. Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      #2. Setup SSH key and known_hosts
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      #3. Deploy via SSH
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+
+            set -e   # exit immediately if any command fails
+
+            echo "=============================="
+            echo " Starting deployment..."
+            echo "=============================="
+
+            # Navigate to the deployment directory
+            cd /var/www/rovo/rovo-people-prod
+
+            # Pull latest code
+            git pull origin main
+
+            # Install / update Node dependencies
+            npm ci --production
+
+            # Write .env from GitHub Secret (the whole file is stored as a secret)
+            echo "$PROD_ENV" > .env
+
+            # Restart Docker MongoDB (port change applied)
+            docker compose down
+            docker compose up -d
+
+            # Wait for MongoDB to be healthy
+            echo "Waiting for MongoDB to become ready..."
+            for i in {1..30}; do
+              if docker compose exec -T mongodb mongosh --port 27017 --quiet --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q 1; then
+                echo "MongoDB is ready!"
+                break
+              fi
+              echo "  attempt $i/30..."
+              sleep 3
+            done
+
+            # Restart the Node.js application (assumes PM2 is managing it)
+            pm2 restart rovo-people --update-env
+            pm2 save
+
+            echo "=============================="
+            echo " Deployment complete!"
+            echo "=============================="
+
+          ENDSSH
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+
+      # 4. Health check─
+      - name: Health check
+        run: |
+          sleep 10
+          curl --fail --silent --show-error \
+            http://${{ secrets.SERVER_HOST }}:5005/api/health \
+            || (echo "Health check failed!" && exit 1)
+          echo "Health check passed!"
